@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Радар CS2</title>
+<meta name="description" content="Расписание и результаты матчей CS2 с шансами на победу по рейтингу Эло">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  /* Layout: single 760px column; sticky tab bar; match rows = time rail + teams/probability block */
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --fg: #12161c;
+    --muted: #5f6b7a;
+    --line: #d8dee6;
+    --accent: #df6c12;
+    --accent-soft: #fbe3cf;
+    --good: #1f9d55;
+    --bad: #c83c3c;
+    --font-display: "Exo 2", "Arial Narrow", sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1318; --surface: #171c23; --fg: #e9edf2; --muted: #8b97a6; --line: #262e38;
+      --accent: #f08a2c; --accent-soft: #3a2614; --good: #3cc47a; --bad: #ef6b6b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1318; --surface: #171c23; --fg: #e9edf2; --muted: #8b97a6; --line: #262e38;
+    --accent: #f08a2c; --accent-soft: #3a2614; --good: #3cc47a; --bad: #ef6b6b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(40px, env(safe-area-inset-bottom, 0px));
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  img { max-width: 100%; }
+  button { font: inherit; color: inherit; }
+
+  header { padding-block: 32px 18px; display: grid; gap: 6px; }
+  h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 8vw, 42px); line-height: 1; letter-spacing: -0.01em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .sub b { color: var(--fg); font-weight: 600; font-family: var(--font-num); }
+
+  nav {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    background: var(--bg); padding-block: 10px;
+    display: grid; gap: 10px; border-bottom: 1px solid var(--line);
+  }
+  .tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); padding: 4px; border-radius: 10px; }
+  .tabs button { flex: 1; border: 0; background: none; padding: 8px 6px; border-radius: 7px; font-weight: 600; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .chips button {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 99px;
+    padding: 4px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  .chips button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h2 { font-family: var(--font-display); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 26px 0 10px; display: flex; align-items: center; gap: 8px; }
+  h2 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+  @media (prefers-reduced-motion: reduce) { h2 .live-dot { animation: none; } }
+
+  .list { display: grid; gap: 8px; }
+  .m {
+    display: grid; grid-template-columns: 54px 1fr; gap: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .m-time { font-family: var(--font-num); font-size: 15px; padding-top: 2px; }
+  .m-time small { display: block; font-family: var(--font-body); color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .m-body { display: grid; gap: 8px; min-width: 0; }
+  .teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+  .team { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .team.b { flex-direction: row-reverse; text-align: right; }
+  .team .nm { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .team.fav .nm { font-weight: 600; }
+  .logo {
+    width: 26px; height: 26px; flex: none; border-radius: 6px; object-fit: contain;
+    background: var(--bg); display: grid; place-items: center;
+    font-size: 10px; font-weight: 600; color: var(--muted);
+  }
+  .mid { font-family: var(--font-num); font-size: 13px; color: var(--muted); text-align: center; white-space: nowrap; }
+  .mid.score { font-size: 18px; color: var(--fg); }
+  .probs { display: grid; gap: 4px; }
+  .pct { display: flex; justify-content: space-between; font-family: var(--font-num); font-size: 13px; color: var(--muted); }
+  .pct .hi { color: var(--accent); }
+  .bar { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: var(--line); gap: 2px; }
+  .bar i { display: block; background: var(--muted); opacity: 0.45; }
+  .bar i.f { background: var(--accent); opacity: 1; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); align-items: center; }
+  .tier { font-weight: 600; color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 11px; }
+  .pill { font-size: 11px; font-weight: 600; border-radius: 99px; padding: 1px 8px; }
+  .pill.ok { color: var(--good); border: 1px solid currentColor; }
+  .pill.miss { color: var(--bad); border: 1px solid currentColor; }
+  .pill.low { color: var(--muted); border: 1px dashed var(--line); }
+  .pill.live { background: var(--bad); color: #fff; }
+  .meta a { color: var(--fg); }
+
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.n { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  td .team { gap: 10px; }
+
+  .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 20px; color: var(--muted); display: grid; gap: 8px; }
+  .empty b { color: var(--fg); }
+  .note { color: var(--muted); font-size: 12px; margin-top: 28px; line-height: 1.6; max-width: 65ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Радар <span>CS2</span></h1>
+    <div class="sub" id="sub">Загрузка…</div>
+  </header>
+
+  <nav>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-matches" aria-selected="true" data-tab="matches">Матчи</button>
+      <button role="tab" id="tab-results" aria-selected="false" data-tab="results">Результаты</button>
+      <button role="tab" id="tab-ranking" aria-selected="false" data-tab="ranking">Рейтинг</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </nav>
+
+  <main id="view"></main>
+
+  <p class="note">Шансы рассчитаны по рейтингу Эло, который строится по результатам примерно 1500 последних матчей и учитывает формат серии (BO1, BO3, BO5). Это статистическая оценка, а не гарантия. Метка «мало данных» значит, что у одной из команд меньше 5 матчей в истории. Данные: PandaScore, время московское.</p>
+</div>
+
+<script>
+const TZ = "Europe/Moscow";
+const TIERS = ["all", "s", "a", "b", "c", "d"];
+let data = null, tab = "matches", tier = "all";
+try { tier = localStorage.getItem("radar-tier") || "all"; } catch (e) {}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (opts, d) => new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, ...opts }).format(new Date(d));
+const time = d => fmt({ hour: "2-digit", minute: "2-digit" }, d);
+const dayKey = d => fmt({ year: "numeric", month: "2-digit", day: "2-digit" }, d);
+function dayLabel(d) {
+  const k = dayKey(d), now = Date.now();
+  if (k === dayKey(now)) return "Сегодня";
+  if (k === dayKey(now + 864e5)) return "Завтра";
+  if (k === dayKey(now - 864e5)) return "Вчера";
+  return fmt({ weekday: "short", day: "numeric", month: "long" }, d);
+}
+
+function logo(t) {
+  if (!t) return `<span class="logo">?</span>`;
+  if (t.image) return `<img class="logo" src="${esc(t.image)}" alt="" loading="lazy">`;
+  return `<span class="logo">${esc((t.acronym || t.name || "?").slice(0, 3).toUpperCase())}</span>`;
+}
+
+function teamEl(t, side, fav) {
+  return `<div class="team ${side}${fav ? " fav" : ""}">${logo(t)}<span class="nm">${esc(t ? t.name : "TBD")}</span></div>`;
+}
+
+function matchCard(m, kind) {
+  const [a, b] = m.teams;
+  const p = m.prob;
+  const favA = p && p[0] >= 0.5, favB = p && p[1] > 0.5;
+  let mid = `<div class="mid">vs</div>`;
+  if (m.score && (kind === "live" || kind === "past")) mid = `<div class="mid score">${m.score[0]}:${m.score[1]}</div>`;
+
+  let probs = "";
+  if (p) {
+    const pa = Math.round(p[0] * 100), pb = 100 - pa;
+    probs = `<div class="probs">
+      <div class="pct"><span class="${favA ? "hi" : ""}">${pa}%</span><span class="${favB ? "hi" : ""}">${pb}%</span></div>
+      <div class="bar" role="img" aria-label="Шансы: ${esc(a?.name)} ${pa}%, ${esc(b?.name)} ${pb}%"><i class="${favA ? "f" : ""}" style="width:${pa}%"></i><i class="${favB ? "f" : ""}" style="width:${pb}%"></i></div>
+    </div>`;
+  }
+
+  const pills = [];
+  if (kind === "live") pills.push(`<span class="pill live">LIVE</span>`);
+  if (kind === "past" && p && m.winner && a && b) {
+    const fav = p[0] >= 0.5 ? a.id : b.id;
+    pills.push(fav === m.winner ? `<span class="pill ok">прогноз сбылся</span>` : `<span class="pill miss">неожиданный исход</span>`);
+  }
+  if (p && m.lowData) pills.push(`<span class="pill low">мало данных</span>`);
+
+  const meta = [
+    m.tier ? `<span class="tier">${esc(m.tier.toUpperCase())}</span>` : "",
+    esc(m.league || ""),
+    m.tournament ? `<span>${esc(m.tournament)}</span>` : "",
+    m.stream && kind !== "past" ? `<a href="${esc(m.stream)}" target="_blank" rel="noopener">трансляция ↗</a>` : "",
+    ...pills
+  ].filter(Boolean).join("");
+
+  return `<article class="m">
+    <div class="m-time">${kind === "past" ? esc(fmt({ day: "numeric", month: "2-digit" }, m.begin)) : time(m.begin)}<small>BO${m.bo}</small></div>
+    <div class="m-body">
+      <div class="teams">${teamEl(a, "a", favA)}${mid}${teamEl(b, "b", favB)}</div>
+      ${probs}
+      <div class="meta">${meta}</div>
+    </div>
+  </article>`;
+}
+
+const byTier = list => tier === "all" ? list : list.filter(m => m.tier === tier);
+
+function renderMatches() {
+  const live = byTier(data.running);
+  const up = byTier(data.upcoming);
+  let html = "";
+  if (live.length) html += `<h2><span class="live-dot"></span>Сейчас идут</h2><div class="list">${live.map(m => matchCard(m, "live")).join("")}</div>`;
+  if (!up.length && !live.length) return html + emptyFilter();
+  let cur = null;
+  for (const m of up) {
+    const k = dayKey(m.begin);
+    if (k !== cur) { if (cur) html += `</div>`; html += `<h2>${esc(dayLabel(m.begin))}</h2><div class="list">`; cur = k; }
+    html += matchCard(m, "up");
+  }
+  if (cur) html += `</div>`;
+  return html;
+}
+
+function renderResults() {
+  const list = byTier(data.past);
+  if (!list.length) return emptyFilter();
+  return `<h2>Последние результаты</h2><div class="list">${list.map(m => matchCard(m, "past")).join("")}</div>`;
+}
+
+function renderRanking() {
+  if (!data.ranking.length) return `<div class="empty">Рейтинг появится после первого обновления данных.</div>`;
+  return `<h2>Топ-30 по рейтингу Эло</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Команда</th><th>Рейтинг</th><th>Матчей</th><th>Побед</th></tr></thead>
+    <tbody>${data.ranking.map((t, i) => `<tr>
+      <td class="n">${i + 1}</td>
+      <td><div class="team">${logo(t)}<span class="nm">${esc(t.name)}</span></div></td>
+      <td class="n">${t.rating}</td>
+      <td class="n">${t.games}</td>
+      <td class="n">${Math.round(t.wins / t.games * 100)}%</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+const emptyFilter = () => `<div class="empty">Нет матчей${tier !== "all" ? ` уровня ${tier.toUpperCase()}. Выберите другой уровень турниров.` : "."}</div>`;
+
+function renderChips() {
+  const el = document.getElementById("chips");
+  el.hidden = tab === "ranking";
+  el.innerHTML = TIERS.map(t => `<button id="tier-${t}" data-tier="${t}" aria-pressed="${t === tier}">${t === "all" ? "Все турниры" : "Tier " + t.toUpperCase()}</button>`).join("");
+}
+
+function render() {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  renderChips();
+  const view = document.getElementById("view");
+  if (!data.updated) {
+    view.innerHTML = `<div class="empty"><b>Данные ещё не загружались.</b>
+      Откройте репозиторий на GitHub, вкладка <b>Actions</b> → «Обновление данных» → <b>Run workflow</b>. Через пару минут здесь появятся матчи.</div>`;
+    return;
+  }
+  view.innerHTML = tab === "matches" ? renderMatches() : tab === "results" ? renderResults() : renderRanking();
+}
+
+function renderSub() {
+  const sub = document.getElementById("sub");
+  if (!data.updated) { sub.textContent = "Ожидает первого обновления"; return; }
+  const parts = [`Обновлено <b>${esc(fmt({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }, data.updated))}</b>`];
+  if (data.accuracy) {
+    const pct = Math.round(data.accuracy.hits / data.accuracy.total * 100);
+    parts.push(`Фаворит модели побеждал в <b>${pct}%</b> из последних ${data.accuracy.total} матчей`);
+  }
+  sub.innerHTML = parts.map(p => `<span>${p}</span>`).join("");
+}
+
+document.querySelector(".tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b || !data) return;
+  tab = b.dataset.tab; render();
+});
+document.getElementById("chips").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tier]"); if (!b || !data) return;
+  tier = b.dataset.tier;
+  try { localStorage.setItem("radar-tier", tier); } catch (err) {}
+  render();
+});
+
+fetch("data/matches.json", { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => { data = d; renderSub(); render(); })
+  .catch(() => {
+    document.getElementById("sub").textContent = "";
+    document.getElementById("view").innerHTML = `<div class="empty"><b>Не удалось загрузить данные.</b> Проверьте, что файл data/matches.json есть в репозитории.</div>`;
+  });
+</script>
+</body>
+</html>
