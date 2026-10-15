@@ -45,8 +45,8 @@ export function buildRatings(pastMatches) {
   };
 
   const sorted = [...pastMatches]
-    .filter(m => m.winner_id && m.opponents?.length === 2 && !m.forfeit && m.begin_at)
-    .sort((a, b) => new Date(a.begin_at) - new Date(b.begin_at));
+    .filter(m => m.winner_id && m.opponents?.length === 2 && !m.forfeit && m.status === "finished" && (m.begin_at || m.scheduled_at))
+    .sort((a, b) => new Date(a.begin_at || a.scheduled_at) - new Date(b.begin_at || b.scheduled_at));
 
   for (const m of sorted) {
     const tier = m.tournament?.tier;
@@ -67,7 +67,7 @@ export function buildRatings(pastMatches) {
     B.rating += kB * ((1 - aWon) - (1 - pa));
     A.games++; B.games++;
     if (aWon) A.wins++; else B.wins++;
-    A.last = B.last = m.begin_at;
+    A.last = B.last = m.begin_at || m.scheduled_at;
   }
   return { teams, preMatch };
 }
@@ -149,7 +149,7 @@ export async function main() {
   }
 
   const [past, upcoming, running] = await Promise.all([
-    pages("/matches/past", PAST_PAGES, { sort: "-begin_at" }),
+    pages("/matches/past", PAST_PAGES, { sort: "-scheduled_at", "filter[status]": "finished", "filter[forfeit]": "false" }),
     pages("/matches/upcoming", UPCOMING_PAGES, { sort: "begin_at" }),
     get("/matches/running", { per_page: 100 })
   ]);
@@ -157,7 +157,7 @@ export async function main() {
 
   const { teams, preMatch } = buildRatings(past);
   const games = [...teams.values()].map(t => t.games).sort((a, b) => b - a);
-  const span = past.length ? `${past[past.length - 1].begin_at} … ${past[0].begin_at}` : "";
+  const span = past.length ? `${past.at(-1).scheduled_at} … ${past[0].scheduled_at}` : "";
   console.log(`::notice::Команд: ${teams.size}, матчей у лидера: ${games.slice(0, 5).join("/")}, период: ${span}`);
 
   // Точность модели на последних 200 матчах с достаточной историей
@@ -180,14 +180,13 @@ export async function main() {
 
   const data = {
     updated: new Date().toISOString(),
-    stats: { past: past.length, teams: teams.size, topGames: games.slice(0, 5), from: past.at(-1)?.begin_at || null,
+    stats: { past: past.length, teams: teams.size, topGames: games.slice(0, 5), from: past.at(-1)?.scheduled_at || null,
              withWinner: past.filter(m => m.winner_id).length, withTwo: past.filter(m => m.opponents?.length === 2).length,
-             forfeit: past.filter(m => m.forfeit).length,
-             sample: (() => { const m = past[0] || {}; const o = {}; for (const [k, v] of Object.entries(m)) o[k] = v && typeof v === "object" ? (Array.isArray(v) ? `[${v.length}] ` + JSON.stringify(v[0] ?? null).slice(0, 160) : Object.keys(v).slice(0, 8).join(",")) : v; return o; })() },
+             forfeit: past.filter(m => m.forfeit).length, },
     accuracy: recent.length ? { hits, total: recent.length } : null,
     running: running.map(m => slimMatch(m, teams, preMatch)),
     upcoming: upcoming.map(m => slimMatch(m, teams, preMatch)),
-    past: past.filter(m => m.winner_id).slice(0, 60).map(m => slimMatch(m, teams, preMatch)),
+    past: past.filter(m => m.winner_id && m.status === "finished" && !m.forfeit).slice(0, 60).map(m => slimMatch(m, teams, preMatch)),
     ranking
   };
 
