@@ -86,7 +86,7 @@ async function pages(path, n, params) {
   for (let page = 1; page <= n; page++) {
     const batch = await get(path, { ...params, per_page: 100, page });
     all.push(...batch);
-    if (batch.length < 100) break;
+    if (!batch.length) break;
   }
   return all;
 }
@@ -153,9 +153,12 @@ export async function main() {
     pages("/matches/upcoming", UPCOMING_PAGES, { sort: "begin_at" }),
     get("/matches/running", { per_page: 100 })
   ]);
-  console.log(`Загружено: прошедших ${past.length}, ближайших ${upcoming.length}, идущих ${running.length}`);
+  console.log(`::notice::Загружено: прошедших ${past.length}, ближайших ${upcoming.length}, идущих ${running.length}`);
 
   const { teams, preMatch } = buildRatings(past);
+  const games = [...teams.values()].map(t => t.games).sort((a, b) => b - a);
+  const span = past.length ? `${past[past.length - 1].begin_at} … ${past[0].begin_at}` : "";
+  console.log(`::notice::Команд: ${teams.size}, матчей у лидера: ${games.slice(0, 5).join("/")}, период: ${span}`);
 
   // Точность модели на последних 200 матчах с достаточной историей
   const recent = past
