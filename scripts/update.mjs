@@ -144,7 +144,7 @@ function slimMatch(m, teams, preMatch) {
 
 export async function main() {
   if (!TOKEN) {
-    console.error("Нет PANDASCORE_TOKEN. Добавьте его в Settings → Secrets and variables → Actions.");
+    console.error("::error::Нет PANDASCORE_TOKEN. Добавьте его в Settings → Secrets and variables → Actions.");
     process.exit(1);
   }
 
@@ -190,5 +190,5 @@ export async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(e => { console.error(e.message); process.exit(1); });
+  main().catch(e => { console.error("::error::" + e.message.replace(/\n/g, " ")); process.exit(1); });
 }
