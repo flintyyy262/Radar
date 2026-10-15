@@ -180,6 +180,9 @@ export async function main() {
 
   const data = {
     updated: new Date().toISOString(),
+    stats: { past: past.length, teams: teams.size, topGames: games.slice(0, 5), from: past.at(-1)?.begin_at || null,
+             withWinner: past.filter(m => m.winner_id).length, withTwo: past.filter(m => m.opponents?.length === 2).length,
+             forfeit: past.filter(m => m.forfeit).length },
     accuracy: recent.length ? { hits, total: recent.length } : null,
     running: running.map(m => slimMatch(m, teams, preMatch)),
     upcoming: upcoming.map(m => slimMatch(m, teams, preMatch)),
